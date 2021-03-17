@@ -21,25 +21,10 @@ namespace mpu9250
 
     bool MPU9250::init()
     {        
-        uint8_t whoAmI = 0;
-        read(WHOAMI, &whoAmI, sizeof(whoAmI));
-
-        if (whoAmI != WHOAMI_VAL)
-        {
-            return false;
-        }
-
         // Activate chip master I²C mode and disable I²C communication to use SPI.
         ASSERT_SUCCESS(write(USER_CTRL, I2C_MST_EN | I2C_IF_DIS));
 
         ASSERT_SUCCESS(write(I2C_MST_CTRL, I2C_MST_CLK_400KHZ));
-
-        ASSERT_SUCCESS(readAk8963(AK8963_WHOAMI, &whoAmI, sizeof(whoAmI)));
-
-		if (whoAmI != AK8963_WHOAMI_VAL)
-		{
-			return false;
-		}
 
         ASSERT_SUCCESS(writeAk8963(AK8963_CNTL1, AK8693_PWRDWN));
 
@@ -59,6 +44,21 @@ namespace mpu9250
 
         ASSERT_SUCCESS(write(I2C_MST_CTRL, I2C_MST_CLK_400KHZ));
 
+        uint8_t whoAmI = 0;
+        read(WHOAMI, &whoAmI, sizeof(whoAmI));
+
+        if (whoAmI != WHOAMI_VAL)
+        {
+            return false;
+        }
+
+        ASSERT_SUCCESS(readAk8963(AK8963_WHOAMI, &whoAmI, sizeof(whoAmI)));
+
+		if (whoAmI != AK8963_WHOAMI_VAL)
+		{
+			return false;
+		}
+
         ASSERT_SUCCESS(initAk8963());
 
         return true;
@@ -74,9 +74,9 @@ namespace mpu9250
         imu::raw::Magnetometer sensitivity;
         ASSERT_SUCCESS(readAk8963(AK8963_ASA, reinterpret_cast<uint8_t *>(&sensitivity), sizeof(sensitivity)));
 
-        magScale.x = (((sensitivity.x - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
-        magScale.y = (((sensitivity.y - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
-        magScale.z = (((sensitivity.z - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+        magScale_.x = (((sensitivity.x - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+        magScale_.y = (((sensitivity.y - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+        magScale_.z = (((sensitivity.z - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
 
         // Return to powerdown mode in order to change to other mode.
         ASSERT_SUCCESS(writeAk8963(AK8963_CNTL1, AK8693_PWRDWN));
@@ -97,11 +97,11 @@ namespace mpu9250
 
     bool MPU9250::get()
     {
-        txBuff[0] = ACCEL_XOUT_H | READ_FLAG;
+        txBuff_[0] = ACCEL_XOUT_H | READ_FLAG;
 
         HAL_GPIO_WritePin(csPinPort_, csPin_, GPIO_PIN_RESET);
 
-        if (HAL_SPI_TransmitReceive_DMA(spiHandle_, txBuff, rxBuff, READ_BUFFER_LEN) != HAL_OK)
+        if (HAL_SPI_TransmitReceive_DMA(spiHandle_, txBuff_, rxBuff_, READ_BUFFER_LEN) != HAL_OK)
         {
             return false;
         }
@@ -113,47 +113,47 @@ namespace mpu9250
     {
         HAL_GPIO_WritePin(csPinPort_, csPin_, GPIO_PIN_SET);
 
-        rawData.accel.x = rxBuff[1] << 8 | rxBuff[2];
-        rawData.accel.y = rxBuff[3] << 8 | rxBuff[4];
-        rawData.accel.z = rxBuff[5] << 8 | rxBuff[6];
+        rawData.accel.x = rxBuff_[1] << 8 | rxBuff_[2];
+        rawData.accel.y = rxBuff_[3] << 8 | rxBuff_[4];
+        rawData.accel.z = rxBuff_[5] << 8 | rxBuff_[6];
 
-        rawData.temperature = rxBuff[7] << 8 | rxBuff[8];
+        rawData.temperature = rxBuff_[7] << 8 | rxBuff_[8];
 
-		rawData.gyro.x = rxBuff[9] << 8 | rxBuff[10];
-		rawData.gyro.y = rxBuff[11] << 8 | rxBuff[12];
-		rawData.gyro.z = rxBuff[13] << 8 | rxBuff[14];
+		rawData.gyro.x = rxBuff_[9] << 8 | rxBuff_[10];
+		rawData.gyro.y = rxBuff_[11] << 8 | rxBuff_[12];
+		rawData.gyro.z = rxBuff_[13] << 8 | rxBuff_[14];
 
-		rawData.magnet.x = rxBuff[16] << 8 | rxBuff[15];
-		rawData.magnet.y = rxBuff[18] << 8 | rxBuff[17];
-		rawData.magnet.z = rxBuff[20] << 8 | rxBuff[19];
+		rawData.magnet.x = rxBuff_[16] << 8 | rxBuff_[15];
+		rawData.magnet.y = rxBuff_[18] << 8 | rxBuff_[17];
+		rawData.magnet.z = rxBuff_[20] << 8 | rxBuff_[19];
 
         convert();
     }
 
     void MPU9250::convert()
     {
-        data.accel.x = rawData.accel.x * accScale;
-        data.accel.y = rawData.accel.y * accScale;
-        data.accel.z = rawData.accel.z * accScale;
+        data.accel.x = rawData.accel.x * accScale_;
+        data.accel.y = rawData.accel.y * accScale_;
+        data.accel.z = rawData.accel.z * accScale_;
 
-        data.gyro.x = rawData.gyro.x * gyroScale;
-        data.gyro.y = rawData.gyro.y * gyroScale;
-        data.gyro.z = rawData.gyro.z * gyroScale;
+        data.gyro.x = rawData.gyro.x * gyroScale_;
+        data.gyro.y = rawData.gyro.y * gyroScale_;
+        data.gyro.z = rawData.gyro.z * gyroScale_;
 
-        data.temperature = (rawData.temperature - 21.0f) / tempScale + 21.0f;
+        data.temperature = (rawData.temperature - 21.0f) / tempScale_ + 21.0f;
 
-        data.magnet.x = rawData.magnet.x * magScale.x;
-        data.magnet.y = rawData.magnet.y * magScale.y;
-        data.magnet.z = rawData.magnet.z * magScale.z;
+        data.magnet.x = rawData.magnet.x * magScale_.x;
+        data.magnet.y = rawData.magnet.y * magScale_.y;
+        data.magnet.z = rawData.magnet.z * magScale_.z;
     }
 
     bool MPU9250::read(const uint8_t regAddress, uint8_t *in, const uint8_t size)
     {
-    	uint8_t txBuff = READ_FLAG | regAddress;
+    	uint8_t tx = READ_FLAG | regAddress;
 
         HAL_GPIO_WritePin(csPinPort_, csPin_, GPIO_PIN_RESET);
 
-        if (HAL_SPI_Transmit(spiHandle_, (uint8_t *) &txBuff, sizeof(regAddress), 1000) != HAL_OK)
+        if (HAL_SPI_Transmit(spiHandle_, (uint8_t *) &tx, sizeof(regAddress), 1000) != HAL_OK)
         {
             return false;
         }
@@ -170,14 +170,12 @@ namespace mpu9250
 
     bool MPU9250::write(const uint8_t regAddress, const uint8_t out)
     {
-        uint8_t txBuff[WRITE_BUFFER_LEN];
-
-        txBuff[0] = regAddress;
-        txBuff[1] = out;
+        txBuff_[0] = regAddress;
+        txBuff_[1] = out;
 
         HAL_GPIO_WritePin(csPinPort_, csPin_, GPIO_PIN_RESET);
 
-        if (HAL_SPI_Transmit(spiHandle_, txBuff, sizeof(txBuff), 1000) != HAL_OK)
+        if (HAL_SPI_Transmit(spiHandle_, txBuff_, sizeof(regAddress) + sizeof(out), 1000) != HAL_OK)
         {
             return false;
         }
@@ -223,6 +221,16 @@ namespace mpu9250
         {
         	return false;
         }
+
+        return true;
+    }
+
+    bool MPU9250::setInterruptMode(InterruptEnable intMode)
+    {
+        // Configure any read to clear interrupt, active high, 50us pulse and open drain.
+        ASSERT_SUCCESS(write(INT_PIN_CFG, INT_ANYRD_2CLEAR));
+
+        ASSERT_SUCCESS(write(INT_ENABLE, intMode));
 
         return true;
     }

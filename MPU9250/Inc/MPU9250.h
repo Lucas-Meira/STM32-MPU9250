@@ -52,6 +52,8 @@ namespace mpu9250
         bool readAk8963(const uint8_t regAddress, uint8_t *in, const uint8_t size);
         bool writeAk8963(const uint8_t regAddress, uint8_t out);
 
+        bool setInterruptMode(InterruptEnable intMode);
+
         void dmaReadComplete();
 
         MPU9250_s rawData;
@@ -64,13 +66,13 @@ namespace mpu9250
         GPIO_TypeDef *csPinPort_;
         uint16_t csPin_;
 
-        uint8_t txBuff[READ_BUFFER_LEN];
-		uint8_t rxBuff[READ_BUFFER_LEN];
+        uint8_t txBuff_[READ_BUFFER_LEN];
+		uint8_t rxBuff_[READ_BUFFER_LEN];
 
-        imu::raw::Magnetometer magScale;
-        float accScale = 9.81f / 16384.0f;
-        float gyroScale = 1 / 131.0f;
-        float tempScale = 333.87f;
+        imu::si::Magnetometer magScale_;
+        float accScale_ = 9.81f / 16384.0f;
+        float gyroScale_ = 1 / 131.0f;
+        float tempScale_ = 333.87f;
     };
 }
 #endif
