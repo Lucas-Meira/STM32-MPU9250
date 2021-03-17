@@ -12,6 +12,8 @@
 #include "imu.h"
 #include "MPU9250_definitions.h"
 
+#define ASSERT_SUCCESS(rc) {if (!rc) return false;}
+
 namespace mpu9250
 {
 
@@ -56,6 +58,8 @@ namespace mpu9250
         Converted data;
 
     private:
+        bool initAk8963();
+
         SPI_HandleTypeDef *spiHandle_;
         GPIO_TypeDef *csPinPort_;
         uint16_t csPin_;
@@ -63,7 +67,7 @@ namespace mpu9250
         uint8_t txBuff[READ_BUFFER_LEN];
 		uint8_t rxBuff[READ_BUFFER_LEN];
 
-        float magScale = 0.6f;
+        imu::raw::Magnetometer magScale;
         float accScale = 9.81f / 16384.0f;
         float gyroScale = 1 / 131.0f;
         float tempScale = 333.87f;
