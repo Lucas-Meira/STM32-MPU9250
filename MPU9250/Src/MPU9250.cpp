@@ -20,13 +20,7 @@ namespace mpu9250
     }
 
     bool MPU9250::init()
-    {
-        /* Activate chip master I²C mode and disable I²C communication to use SPI. */
-        if (!write(USER_CTRL, I2C_MST_EN))
-        {
-            return false;
-        }
-
+    {        
         uint8_t whoAmI = 0;
         read(WHOAMI, &whoAmI, sizeof(whoAmI));
 
@@ -35,44 +29,68 @@ namespace mpu9250
             return false;
         }
 
-        if (!write(I2C_MST_CTRL, I2C_MST_CLK_400KHZ))
-        {
-            return false;
-        }
+        // Activate chip master I²C mode and disable I²C communication to use SPI.
+        ASSERT_SUCCESS(write(USER_CTRL, I2C_MST_EN | I2C_IF_DIS));
 
-        HAL_Delay(1);
+        ASSERT_SUCCESS(write(I2C_MST_CTRL, I2C_MST_CLK_400KHZ));
 
-        if (!readAk8963(AK8963_WHOAMI, &whoAmI, sizeof(whoAmI)))
-		{
-			return false;
-		}
+        ASSERT_SUCCESS(readAk8963(AK8963_WHOAMI, &whoAmI, sizeof(whoAmI)));
 
 		if (whoAmI != AK8963_WHOAMI_VAL)
 		{
 			return false;
 		}
 
-        if (!writeAk8963(AK8963_CNTL1, POWERDOWN_MODE))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(writeAk8963(AK8963_CNTL1, AK8693_PWRDWN));
+
+        // Reset the MPU9250
+        write(PWR_MGMNT_1, H_RESET);
 
         HAL_Delay(1);
 
-        // Set AK8963 to 16 bit resolution, 100 Hz update rate
-        if (!writeAk8963(AK8963_CNTL1, AK8963_CNT_MEAS_2 | AK8963_OUTPUT_16_BITS))
-        {
-            return false;
-        }
+        // Reset the AK8963
+        writeAk8963(AK8963_CNTL2, AK8963_SRST);
+
+        // Select PLL as a clock source for better accuracy.
+        ASSERT_SUCCESS(write(PWR_MGMNT_1, CLKSEL_PLL));
+
+        // Activate chip master I²C mode and disable I²C communication to use SPI.
+        ASSERT_SUCCESS(write(USER_CTRL, I2C_MST_EN | I2C_IF_DIS));
+
+        ASSERT_SUCCESS(write(I2C_MST_CTRL, I2C_MST_CLK_400KHZ));
+
+        ASSERT_SUCCESS(initAk8963());
+
+        return true;
+    }
+
+    bool MPU9250::initAk8963()
+    {
+        ASSERT_SUCCESS(writeAk8963(AK8963_CNTL1, AK8963_FUSEROM));
+
+        // Wait for AK8693 to change modes.
+        HAL_Delay(1);
+
+        imu::raw::Magnetometer sensitivity;
+        ASSERT_SUCCESS(readAk8963(AK8963_ASA, reinterpret_cast<uint8_t *>(&sensitivity), sizeof(sensitivity)));
+
+        magScale.x = (((sensitivity.x - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+        magScale.y = (((sensitivity.y - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+        magScale.z = (((sensitivity.z - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+
+        // Return to powerdown mode in order to change to other mode.
+        ASSERT_SUCCESS(writeAk8963(AK8963_CNTL1, AK8693_PWRDWN));
 
         HAL_Delay(1);
 
-        // Configure MPU to read magnetometer
+        // Set AK8963 to 16 bit resolution, 100 Hz update rate.
+        ASSERT_SUCCESS(writeAk8963(AK8963_CNTL1, AK8963_CNT_MEAS_2 | AK8963_OUTPUT_16_BITS));
+
+        HAL_Delay(1);
+
+        // Configure MPU to read magnetometer. Read 3 axes and status2 register (mandatory).
         uint8_t magData[7];
-        if (!readAk8963(AK8963_HXL, magData, sizeof(magData)))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(readAk8963(AK8963_HXL, magData, sizeof(magData)));
 
         return true;
     }
@@ -124,9 +142,9 @@ namespace mpu9250
 
         data.temperature = (rawData.temperature - 21.0f) / tempScale + 21.0f;
 
-        data.magnet.x = rawData.magnet.x * magScale;
-        data.magnet.y = rawData.magnet.y * magScale;
-        data.magnet.z = rawData.magnet.z * magScale;
+        data.magnet.x = rawData.magnet.x * magScale.x;
+        data.magnet.y = rawData.magnet.y * magScale.y;
+        data.magnet.z = rawData.magnet.z * magScale.z;
     }
 
     bool MPU9250::read(const uint8_t regAddress, uint8_t *in, const uint8_t size)
@@ -171,21 +189,12 @@ namespace mpu9250
 
     bool MPU9250::readAk8963(const uint8_t regAddress, uint8_t *in, const uint8_t size)
     {
-        if (!write(I2C_SLV0_ADDR, READ_FLAG | AK8963_I2C_ADDR))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(write(I2C_SLV0_ADDR, READ_FLAG | AK8963_I2C_ADDR));
 
-        if (!write(I2C_SLV0_REG, regAddress))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(write(I2C_SLV0_REG, regAddress));
 
         // Limit to 4 bits write
-        if (!write(I2C_SLV0_CTRL, READ_FLAG | (size & 0x0F)))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(write(I2C_SLV0_CTRL, READ_FLAG | (size & 0x0F)));
 
         HAL_Delay(1);
 
@@ -194,35 +203,22 @@ namespace mpu9250
 
     bool MPU9250::writeAk8963(const uint8_t regAddress, uint8_t out)
     {
-        if (!write(I2C_SLV0_ADDR, AK8963_I2C_ADDR))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(write(I2C_SLV0_ADDR, AK8963_I2C_ADDR));
 
-        if (!write(I2C_SLV0_REG, regAddress))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(write(I2C_SLV0_REG, regAddress));
 
-        if (!write(I2C_SLV0_DO, out))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(write(I2C_SLV0_DO, out));
 
         // Limit to 4 bits write
-        if (!write(I2C_SLV0_CTRL, READ_FLAG | (sizeof(data) & 0x0F)))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(write(I2C_SLV0_CTRL, READ_FLAG | (sizeof(data) & 0x0F)));
 
+        // Wait for the chips to communicate between themselves.
         HAL_Delay(1);
 
         uint8_t regVal = 0;
-        if (!readAk8963(regAddress, &regVal, sizeof(regVal)))
-        {
-            return false;
-        }
+        ASSERT_SUCCESS(readAk8963(regAddress, &regVal, sizeof(regVal)));
 
+        // Check if the value has been correctly written.
         if (regVal != out)
         {
         	return false;
