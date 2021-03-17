@@ -71,12 +71,12 @@ namespace mpu9250
         // Wait for AK8693 to change modes.
         HAL_Delay(1);
 
-        imu::raw::Magnetometer sensitivity;
-        ASSERT_SUCCESS(readAk8963(AK8963_ASA, reinterpret_cast<uint8_t *>(&sensitivity), sizeof(sensitivity)));
+        uint8_t sensitivities[3];
+        ASSERT_SUCCESS(readAk8963(AK8963_ASA, sensitivities, sizeof(sensitivities)));
 
-        magScale_.x = (((sensitivity.x - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
-        magScale_.y = (((sensitivity.y - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
-        magScale_.z = (((sensitivity.z - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+        magScale_.x = (((sensitivities[0] - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+        magScale_.y = (((sensitivities[1] - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
+        magScale_.z = (((sensitivities[2] - 128.0f) / 256.0f) + 1) * 4912.0f / 32760.0f;
 
         // Return to powerdown mode in order to change to other mode.
         ASSERT_SUCCESS(writeAk8963(AK8963_CNTL1, AK8693_PWRDWN));
