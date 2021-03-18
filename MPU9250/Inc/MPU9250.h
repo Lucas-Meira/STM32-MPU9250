@@ -7,6 +7,7 @@
 #ifndef MPU9250_H
 #define MPU9250_H
 
+#include "main.h"
 #include "spi.h"
 #include "gpio.h"
 #include "imu.h"
@@ -61,6 +62,7 @@ namespace mpu9250
 
     private:
         bool initAk8963();
+        void setSpiClockSpeed(uint16_t speed);
 
         SPI_HandleTypeDef *spiHandle_;
         GPIO_TypeDef *csPinPort_;
