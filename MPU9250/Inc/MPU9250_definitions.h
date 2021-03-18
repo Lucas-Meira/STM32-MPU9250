@@ -7,7 +7,7 @@
 #ifndef MPU9250_DEFINITIONS
 #define MPU9250_DEFINITIONS
 
-#include <stdint.h>
+#include <cstdint>
 
 namespace mpu9250
 {

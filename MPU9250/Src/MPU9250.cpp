@@ -6,7 +6,6 @@
 
 #include "MPU9250.h"
 
-#include <string.h>
 #include <memory>
 
 namespace mpu9250
@@ -21,7 +20,7 @@ namespace mpu9250
     bool MPU9250::init()
     {
         // Config clock speed must be lower than 1MHz.
-        setSpiClockSpeed(1);
+        ASSERT_SUCCESS(setSpiClockSpeed_(1));
 
         // Activate chip master I²C mode and disable I²C communication to use SPI.
         ASSERT_SUCCESS(write(USER_CTRL, I2C_MST_EN | I2C_IF_DIS));
@@ -61,14 +60,14 @@ namespace mpu9250
             return false;
         }
 
-        ASSERT_SUCCESS(initAk8963());
+        ASSERT_SUCCESS(initAk8963_());
 
-        setSpiClockSpeed(20);
+        ASSERT_SUCCESS(setSpiClockSpeed_(20));
 
         return true;
     }
 
-    bool MPU9250::initAk8963()
+    bool MPU9250::initAk8963_()
     {
         ASSERT_SUCCESS(writeAk8963(AK8963_CNTL1, AK8963_FUSEROM));
 
@@ -231,19 +230,19 @@ namespace mpu9250
 
     bool MPU9250::setInterruptMode(InterruptEnable intMode)
     {
-        setSpiClockSpeed(1);
+        setSpiClockSpeed_(1);
 
         // Configure any read to clear interrupt, active high, 50us pulse and open drain.
         ASSERT_SUCCESS(write(INT_PIN_CFG, INT_ANYRD_2CLEAR));
 
         ASSERT_SUCCESS(write(INT_ENABLE, intMode));
 
-        setSpiClockSpeed(20);
+        setSpiClockSpeed_(20);
 
         return true;
     }
 
-    void MPU9250::setSpiClockSpeed(uint16_t speed)
+    bool MPU9250::setSpiClockSpeed_(uint16_t speed)
     {
         if (speed > 20)
         {
@@ -257,6 +256,7 @@ namespace mpu9250
         uint32_t prescaler = SPI_BAUDRATEPRESCALER_2;
 
         RCC_ClkInitTypeDef RCC_ClkInitStruct;
+
         uint32_t temp;
 
         HAL_RCC_GetClockConfig(&RCC_ClkInitStruct, &temp);
@@ -321,8 +321,19 @@ namespace mpu9250
             prescaler = SPI_BAUDRATEPRESCALER_256;
         }
 
-        spiHandle_->Instance->CR1 &= ~SPI_CR1_BR_Msk;
+        // Clean SPI baudrate prescaler bits and set new prescaler value
+        if (spiHandle_->State != HAL_SPI_STATE_READY)
+        {
+            return false;
+        }
 
+        spiHandle_->State = HAL_SPI_STATE_BUSY;
+
+        spiHandle_->Instance->CR1 &= ~SPI_CR1_BR_Msk;
         spiHandle_->Instance->CR1 |= prescaler;
+
+        spiHandle_->State = HAL_SPI_STATE_READY;
+
+        return true;
     }
 }
