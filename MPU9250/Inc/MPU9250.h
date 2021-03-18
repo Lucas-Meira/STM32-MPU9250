@@ -13,12 +13,15 @@
 #include "imu.h"
 #include "MPU9250_definitions.h"
 
-#define ASSERT_SUCCESS(rc) {if (!rc) return false;}
+#define ASSERT_SUCCESS(rc) \
+	{                      \
+		if (!rc)           \
+			return false;  \
+	}
 
 namespace mpu9250
 {
-
-	using namespace imu;
+    using namespace imu;
 
     struct MPU9250_s
     {
@@ -69,7 +72,7 @@ namespace mpu9250
         uint16_t csPin_;
 
         uint8_t txBuff_[READ_BUFFER_LEN];
-		uint8_t rxBuff_[READ_BUFFER_LEN];
+        uint8_t rxBuff_[READ_BUFFER_LEN];
 
         imu::si::Magnetometer magScale_;
         float accScale_ = 9.81f / 16384.0f;

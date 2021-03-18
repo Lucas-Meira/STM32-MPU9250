@@ -83,7 +83,6 @@ namespace mpu9250
     const uint8_t AK8963_OUTPUT_16_BITS = 0x10;
     const uint8_t AK8963_WHOAMI_VAL = 0x48;
     const uint8_t AK8963_SRST = 0x01;
-
 }
 
 #endif
