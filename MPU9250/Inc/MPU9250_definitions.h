@@ -58,6 +58,8 @@ namespace mpu9250
     const uint8_t LATCH_INT_EN = 0x20;
     const uint8_t INT_ANYRD_2CLEAR = 0x10;
 
+    /* Enums and Constants */
+
     enum InterruptEnable : uint8_t
     {
         RAW_RDY_EN = 0x01,
@@ -65,6 +67,36 @@ namespace mpu9250
         FIFO_OVERFLOW_EN = 0x10,
         WOM_EN = 0x40
     };
+
+    enum AccelRange : uint8_t
+    {
+        ACCEL_RANGE_2G = 0x00,
+        ACCEL_RANGE_4G = 0x08,
+        ACCEL_RANGE_8G = 0x10,
+        ACCEL_RANGE_16G = 0x18,
+        ACCEL_RANGE_DEFAULT = ACCEL_RANGE_2G
+    };
+
+    enum GyroRange : uint8_t
+    {
+        GYRO_RANGE_250DPS = 0x00,
+        GYRO_RANGE_500DPS = 0x08,
+        GYRO_RANGE_1000DPS = 0x10,
+        GYRO_RANGE_2000DPS = 0x18,
+        GYRO_RANGE_DEFAULT = GYRO_RANGE_250DPS
+    };
+
+
+    const float ACCEL_SCALE[4] = {16384.0f, 8192.0f, 4096.0f, 2048.0f};
+
+    const float ACCEL_SCALE_DEFAULT = ACCEL_SCALE[0];
+
+    const float GYRO_SCALE[4] = {131.0f, 65.5f, 32.8f, 16.4f};
+
+    const float GYRO_SCALE_DEFAULT = GYRO_SCALE[0];
+
+    const uint16_t SPI_MAX_READ_FREQ = 20000;
+    const uint16_t SPI_MAX_WRITE_FREQ = 1000;
 
     /* AK8963 registers */
 

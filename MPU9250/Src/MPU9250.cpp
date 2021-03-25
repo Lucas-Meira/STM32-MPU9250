@@ -19,9 +19,6 @@ namespace mpu9250
 
     bool MPU9250::init()
     {
-        // Config clock speed must be lower than 1MHz.
-        ASSERT_SUCCESS(setSpiClockSpeed_(1));
-
         // Activate chip master I²C mode and disable I²C communication to use SPI.
         ASSERT_SUCCESS(write(USER_CTRL, I2C_MST_EN | I2C_IF_DIS));
 
@@ -62,7 +59,9 @@ namespace mpu9250
 
         ASSERT_SUCCESS(initAk8963_());
 
-        ASSERT_SUCCESS(setSpiClockSpeed_(20));
+        ASSERT_SUCCESS(setAccelRange(ACCEL_RANGE_DEFAULT));
+
+        ASSERT_SUCCESS(setGyroRange(GYRO_RANGE_DEFAULT));
 
         return true;
     }
@@ -100,6 +99,11 @@ namespace mpu9250
 
     bool MPU9250::get()
     {
+        if (spiClockSpeed_ != SPI_MAX_READ_FREQ)
+        {
+            setSpiClockSpeed(SPI_MAX_READ_FREQ);
+        }
+
         txBuff_[0] = ACCEL_XOUT_H | READ_FLAG;
 
         HAL_GPIO_WritePin(csPinPort_, csPin_, GPIO_PIN_RESET);
@@ -152,6 +156,11 @@ namespace mpu9250
 
     bool MPU9250::read(const uint8_t regAddress, uint8_t *in, const uint8_t size)
     {
+        if (spiClockSpeed_ > SPI_MAX_WRITE_FREQ)
+        {
+            ASSERT_SUCCESS(setSpiClockSpeed(SPI_MAX_WRITE_FREQ));
+        }
+
         uint8_t tx = READ_FLAG | regAddress;
 
         HAL_GPIO_WritePin(csPinPort_, csPin_, GPIO_PIN_RESET);
@@ -173,6 +182,11 @@ namespace mpu9250
 
     bool MPU9250::write(const uint8_t regAddress, const uint8_t out)
     {
+        if (spiClockSpeed_ > SPI_MAX_WRITE_FREQ)
+        {
+            ASSERT_SUCCESS(setSpiClockSpeed(SPI_MAX_WRITE_FREQ));
+        }
+
         txBuff_[0] = regAddress;
         txBuff_[1] = out;
 
@@ -228,29 +242,44 @@ namespace mpu9250
         return true;
     }
 
-    bool MPU9250::setInterruptMode(InterruptEnable intMode)
+    bool MPU9250::setInterruptMode(const InterruptEnable intMode)
     {
-        setSpiClockSpeed_(1);
-
         // Configure any read to clear interrupt, active high, 50us pulse and open drain.
         ASSERT_SUCCESS(write(INT_PIN_CFG, INT_ANYRD_2CLEAR));
 
         ASSERT_SUCCESS(write(INT_ENABLE, intMode));
 
-        setSpiClockSpeed_(20);
+        return true;
+    }
+
+    bool MPU9250::setAccelRange(const AccelRange accelRange)
+    {
+        ASSERT_SUCCESS(write(ACCEL_CONFIG, accelRange));
+
+        accScale_ = 9.81f / static_cast<float>(ACCEL_SCALE[accelRange >> 3]);
 
         return true;
     }
 
-    bool MPU9250::setSpiClockSpeed_(uint16_t speed)
+    bool MPU9250::setGyroRange(const GyroRange gyroRange)
     {
-        if (speed > 20)
+        ASSERT_SUCCESS(write(GYRO_CONFIG, gyroRange));
+
+        gyroScale_ = 1.0f / (GYRO_SCALE[gyroRange >> 3]);
+
+        return true;
+    }
+
+
+    bool MPU9250::setSpiClockSpeed(uint16_t speed)
+    {
+        if (speed > SPI_MAX_READ_FREQ)
         {
-            speed = 20;
+            speed = SPI_MAX_READ_FREQ;
         }
         else if (speed == 0)
         {
-            speed = 1;
+            speed = SPI_MAX_WRITE_FREQ;
         }
 
         uint32_t prescaler = SPI_BAUDRATEPRESCALER_2;
@@ -286,39 +315,47 @@ namespace mpu9250
 
         uint32_t spiClkFreq = SystemCoreClock / apb2ClkDivider / 1000; // Freq in kHz
 
-        uint32_t tempPrescaler = spiClkFreq / (speed * 1000);
+        uint32_t tempPrescaler = spiClkFreq / speed;
 
         if (tempPrescaler <= 2)
         {
             prescaler = SPI_BAUDRATEPRESCALER_2;
+            tempPrescaler = 2;
         }
         else if (tempPrescaler <= 4)
         {
             prescaler = SPI_BAUDRATEPRESCALER_4;
+            tempPrescaler = 4;
         }
         else if (tempPrescaler <= 8)
         {
             prescaler = SPI_BAUDRATEPRESCALER_8;
+            tempPrescaler = 8;
         }
         else if (tempPrescaler <= 16)
         {
             prescaler = SPI_BAUDRATEPRESCALER_16;
+            tempPrescaler = 16;
         }
         else if (tempPrescaler <= 32)
         {
             prescaler = SPI_BAUDRATEPRESCALER_32;
+            tempPrescaler = 32;
         }
         else if (tempPrescaler <= 64)
         {
             prescaler = SPI_BAUDRATEPRESCALER_64;
+            tempPrescaler = 64;
         }
         else if (tempPrescaler <= 128)
         {
             prescaler = SPI_BAUDRATEPRESCALER_128;
+            tempPrescaler = 128;
         }
         else if (tempPrescaler <= 256)
         {
             prescaler = SPI_BAUDRATEPRESCALER_256;
+            tempPrescaler = 256;
         }
 
         // Clean SPI baudrate prescaler bits and set new prescaler value
@@ -333,6 +370,8 @@ namespace mpu9250
         spiHandle_->Instance->CR1 |= prescaler;
 
         spiHandle_->State = HAL_SPI_STATE_READY;
+
+        spiClockSpeed_ = spiClkFreq / tempPrescaler;
 
         return true;
     }

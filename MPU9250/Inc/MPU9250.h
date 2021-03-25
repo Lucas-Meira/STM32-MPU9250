@@ -55,28 +55,35 @@ namespace mpu9250
         bool readAk8963(const uint8_t regAddress, uint8_t *in, const uint8_t size);
         bool writeAk8963(const uint8_t regAddress, uint8_t out);
 
-        bool setInterruptMode(InterruptEnable intMode);
+        bool setInterruptMode(const InterruptEnable intMode);
+        bool setAccelRange(const AccelRange accelRange);
+        bool setGyroRange(const GyroRange gyroRange);
 
         void dmaReadComplete();
+
+        bool setSpiClockSpeed(uint16_t speed);
 
         MPU9250_s rawData;
         Converted data;
 
     private:
         bool initAk8963_();
-        bool setSpiClockSpeed_(uint16_t speed);
+
+        void getAccelScale_();
 
         SPI_HandleTypeDef *spiHandle_;
         GPIO_TypeDef *csPinPort_;
         uint16_t csPin_;
 
+        uint16_t spiClockSpeed_ = SPI_MAX_READ_FREQ;
+
         uint8_t txBuff_[READ_BUFFER_LEN];
         uint8_t rxBuff_[READ_BUFFER_LEN];
 
         imu::si::Magnetometer magScale_;
-        float accScale_ = 9.81f / 16384.0f;
-        float gyroScale_ = 1 / 131.0f;
-        float tempScale_ = 333.87f;
+        float accScale_ = 9.81f / ACCEL_SCALE_DEFAULT;
+        float gyroScale_ = 1.0f / GYRO_SCALE_DEFAULT;
+        const float tempScale_ = 333.87f;
     };
 }
 #endif
